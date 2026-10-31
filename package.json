@@ -1,18 +1,12 @@
 {
-  "name": "wordle-reminder-bot",
-  "version": "1.0.0",
-  "description": "Discord bot: random daily Wordle reminders + monthly/yearly wrap-ups",
-  "main": "index.js",
+  "name": "wordle-discord-bot",
+  "version": "2.0.0",
+  "description": "Discord Wordle bot run by GitHub Actions: daily reminder, score logging, weekly Wordle Wrapped, monthly and yearly recaps",
+  "private": true,
   "type": "commonjs",
   "scripts": {
-    "start": "node index.js"
+    "tick": "node src/run.js tick",
+    "backfill": "node src/run.js backfill"
   },
-  "dependencies": {
-    "discord.js": "^14.16.3",
-    "node-schedule": "^2.1.1",
-    "dotenv": "^16.4.5"
-  },
-  "engines": {
-    "node": ">=18.0.0"
-  }
+  "engines": { "node": ">=20" }
 }

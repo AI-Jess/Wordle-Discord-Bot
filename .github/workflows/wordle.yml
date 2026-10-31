@@ -1,0 +1,85 @@
+name: Wordle bot
+
+on:
+  schedule:
+    # Hourly from 8 AM to 10 PM Central (times are UTC; covers both CST and CDT).
+    - cron: "17 0-3,13-23 * * *"
+  workflow_dispatch:
+    inputs:
+      action:
+        description: What to do
+        type: choice
+        default: wrap-week
+        options: [wrap-week, wrap-month, wrap-year, reminder, log-result, backfill, tick]
+      period:
+        description: For recaps, this period so far or the last full one
+        type: choice
+        default: current
+        options: [current, previous]
+      post:
+        description: Post the recap to Discord (unchecked = preview only)
+        type: boolean
+        default: false
+      name:
+        description: "log-result: player's display name"
+        required: false
+      tries:
+        description: "log-result: 1-6, or 7 for X"
+        required: false
+      date:
+        description: "log-result: YYYY-MM-DD (blank = yesterday)"
+        required: false
+
+# Never run two copies at once, so the saved history can't get overwritten.
+concurrency:
+  group: wordle-bot
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Load saved history (data branch)
+        run: |
+          if git ls-remote --exit-code --heads origin data >/dev/null; then
+            git fetch --depth 1 origin data
+            git worktree add data-branch FETCH_HEAD
+          else
+            mkdir -p data-branch
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Run
+        env:
+          DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
+          DISCORD_CHANNEL_ID: ${{ vars.DISCORD_CHANNEL_ID }}
+          DISCORD_ROLE_ID: ${{ vars.DISCORD_ROLE_ID }}
+          DATA_FILE: ${{ github.workspace }}/data-branch/store.json
+          PERIOD: ${{ inputs.period }}
+          POST: ${{ inputs.post }}
+          NAME: ${{ inputs.name }}
+          TRIES: ${{ inputs.tries }}
+          DATE: ${{ inputs.date }}
+        run: node src/run.js "${{ inputs.action || 'tick' }}"
+
+      - name: Save history
+        if: always()
+        run: |
+          cd data-branch
+          [ -f store.json ] || exit 0
+          [ -e .git ] || git init -q
+          git config user.name "wordle-bot"
+          git config user.email "wordle-bot@users.noreply.github.com"
+          git add store.json
+          git diff --cached --quiet && { echo "No changes."; exit 0; }
+          git commit -qm "Update Wordle history"
+          git push -q "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" HEAD:refs/heads/data
